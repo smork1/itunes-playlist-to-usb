@@ -83,9 +83,12 @@ class PlaylistExporter < Thor
   end
 
   def add_track_to_catalog(info)
+	puts "DBG: #{info}"
     name = clean_string(info["Name"])
     album = clean_string(info["Album"], 25)
     genre = clean_string(info["Genre"], 20)
+    artist = clean_string(info["Artist"], 25)
+    album_artist = clean_string(info["Album Artist"], 25)
     track_number = info["Track Number"] || 0
     file_uri = URI(info["Location"])
 
@@ -93,14 +96,26 @@ class PlaylistExporter < Thor
     original_file =~ /.*\.(.*)/
     file_type = $1
 
-    @catalog[genre] ||= {}
-    @catalog[genre][album] ||= []
+	 if album_artist != 'Blank'
+		 @catalog[album_artist] ||= {}
+		 @catalog[album_artist][album] ||= []
 
-    if options.verbose?
-      puts "    Cataloging   : #{name} / #{album} / #{genre} / #{track_number}"
-    end
-    target_name = "%02d-#{name}.#{file_type}" % track_number
-    @catalog[genre][album] << {:name => target_name, :file => original_file}
+		 if options.verbose?
+			puts "    Cataloging   : #{name} / #{album} / #{genre} / #{track_number}"
+		 end
+		 target_name = "%02d-#{name}.#{file_type}" % track_number
+		 @catalog[album_artist][album] << {:name => target_name, :file => original_file}
+	 else
+		 @catalog[artist] ||= {}
+		 @catalog[artist][album] ||= []
+
+		 if options.verbose?
+			puts "    Cataloging   : #{name} / #{album} / #{genre} / #{track_number}"
+		 end
+		 target_name = "%02d-#{name}.#{file_type}" % track_number
+		 @catalog[artist][album] << {:name => target_name, :file => original_file}
+	 end
+
   end
 
   def clean_string(s, cutoff_at = nil)
@@ -116,24 +131,32 @@ class PlaylistExporter < Thor
   end
 
   def copy_catalog
-    @catalog.each do |genre, albums|
-      puts "Genre: #{genre}"
-      genre_path = "#{@target_directory}/#{genre}"
+  sorted_catalog = @catalog.sort_by {|e| [e[0], e[1]]}
+    sorted_catalog.each do |artist, albums|
+      puts "Artist: #{artist}"
+      artist_path = "#{@target_directory}/#{artist}"
 
       unless options.debug?
-        FileUtils.mkdir(genre_path) unless File.exists?(genre_path)
+        FileUtils.mkdir(artist_path) unless File.exists?(artist_path)
       end
 
-      albums.each do |album, tracks|
+		sorted_albums = albums.sort_by {|e| [e[0], e[1]]}
+      sorted_albums.each do |album, tracks|
         puts "  Album: #{album}"
-        album_path = "#{@target_directory}/#{genre}/#{album}"
+        album_path = "#{@target_directory}/#{artist}/#{album}"
 
         unless options.debug?
           FileUtils.mkdir(album_path) unless File.exists?(album_path)
         end
 
-        tracks.each do |track|
-          full_destination = "#{@target_directory}/#{genre}/#{album}/#{track[:name]}"
+#		  puts "Tracks: #{tracks}"
+
+
+		  sorted_tracks = tracks.sort {|a,b| a[:name] <=> b[:name]}
+#		  puts "Tracks SORTED: #{sorted_tracks}"
+
+        sorted_tracks.each do |track|
+          full_destination = "#{@target_directory}/#{artist}/#{album}/#{track[:name]}"
           source = track[:file]
 
           if options.verbose?
